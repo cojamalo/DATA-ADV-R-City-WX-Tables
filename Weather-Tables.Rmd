@@ -1,0 +1,115 @@
+---
+title: "US City Weather Tables- Advanced R Practice"
+output:
+  html_document: default
+  html_notebook: default
+---
+```{r include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,fig.align='center', fig.width=6)
+```
+### Submission by Connor Lenio. Email: cojamalo@gmail.com
+Completion Date: May 7, 2017
+
+## Assignment
+You are working on a project for a meteorology bureau. You have been supplied
+weather data for 4 cities in the US: Chicago, New York, Houston and San Francisco.
+
+You are required to deliver the following outputs:
+
+1. A table showing the annual averages of each observed metric for every city
+2. A table showing by how much temperature fluctuates each month from min to
+max (in %). Take min temperature as the base
+3. A table showing the annual maximums of each observed metric for every city
+4. A table showing the annual minimums of each observed metric for every city
+5. A table showing in which months the annual maximums of each metric were
+observed in every city (Advanced)
+
+## Data
+
+Import the needed packages:
+```{r, message=FALSE, warning=FALSE}
+library(data.table)
+library(tidyr)
+library(pander)
+library(dplyr)
+```
+<br>
+
+Read each city's data into R using fread:
+```{r}
+chi <- fread("Weather Data/Chicago-F.csv", na.strings = "", showProgress = FALSE) %>% tbl_df
+hou <- fread("Weather Data/Houston-F.csv", na.strings = "", showProgress = FALSE) %>% tbl_df
+nyc <- fread("Weather Data/NewYork-F.csv", na.strings = "", showProgress = FALSE) %>% tbl_df
+sfo <- fread("Weather Data/SanFrancisco-F.csv", na.strings = "", showProgress = FALSE) %>% tbl_df
+```
+<br>
+
+### Data Cleaning
+
+Each city's data frame does not adhere to the rules of tidy data, as can be seen in Chicago's data:
+```{r results="asis"}
+pandoc.table(chi, split.tables=Inf)
+```
+
+The problem is each row is not a single observation, but instead the rows are variables. 
+<br>
+
+The `tidyr` package can address this issue. The variable columns with month names are gathered into a single `Month` column. Then, the row variables are spread to become columns, and the resulting data set is arranged in chronological order by month. The code is run for all four cities and the Chicago data is shown:
+```{r results="asis"}
+chi <- chi %>% gather(key=Month, value = Value,Jan:Dec) %>% spread(V1, Value) %>% mutate(month_num = match(Month,month.abb)) %>% arrange(month_num) %>% select(-month_num)
+hou <- hou %>% gather(key=Month, value = Value,Jan:Dec) %>% spread(V1, Value) %>% mutate(month_num = match(Month,month.abb)) %>% arrange(month_num) %>% select(-month_num)
+nyc <- nyc %>% gather(key=Month, value = Value,Jan:Dec) %>% spread(V1, Value) %>% mutate(month_num = match(Month,month.abb)) %>% arrange(month_num) %>% select(-month_num)
+sfo <- sfo %>% gather(key=Month, value = Value,Jan:Dec) %>% spread(V1, Value) %>% mutate(month_num = match(Month,month.abb)) %>% arrange(month_num) %>% select(-month_num)
+pandoc.table(chi, caption="Monthly Temperature Data for Chicago")
+```
+<br>
+
+### Construct the Tables
+
+#### Table 1: A table showing the annual averages of each observed metric for every city
+For the first table, `colMeans` is used to find the mean monthly values for each city:
+```{r results="asis"}
+table_1 <- rbind(colMeans(chi[,-1]), colMeans(hou[,-1]), colMeans(nyc[,-1]), colMeans(sfo[,-1])) %>% round(digits=1)
+table_1 <- cbind(data.frame(City=c("Chicago","Houston", "New York City", "San Francisco")),table_1)
+pandoc.table(table_1, split.tables=Inf, caption="Average Monthly Value for Each City")
+```
+<br>
+
+#### Table 2: A table showing by how much temperature fluctuates each month from min to max (in %).
+The second set of tables shows the percent fluctuation in temperatures for each month. Each city has its own table in this case. Chicago's `table_1` is shown as an example.
+```{r results="asis"}
+table_2_chi <- chi %>% mutate(Perc_Temp_Fluc = round((AvgHigh_F / AvgLow_F - 1)*100, 1)) %>% select(Month, Perc_Temp_Fluc)
+table_2_hou <- hou %>% mutate(Perc_Temp_Fluc = round((AvgHigh_F / AvgLow_F - 1)*100, 1)) %>% select(Month, Perc_Temp_Fluc)
+table_2_nyc <- nyc %>% mutate(Perc_Temp_Fluc = round((AvgHigh_F / AvgLow_F - 1)*100, 1)) %>% select(Month, Perc_Temp_Fluc)
+table_2_sfo <- sfo %>% mutate(Perc_Temp_Fluc = round((AvgHigh_F / AvgLow_F - 1)*100, 1)) %>% select(Month, Perc_Temp_Fluc)
+pandoc.table(table_2_chi, caption="Temperature Fluctuations for Chicago")
+```
+<br>
+
+#### Table 3: A table showing the annual maximums of each observed metric for every city
+The third table calls the `apply` with the `max` function to select the maximum values for each variable for each city:
+```{r, results="asis"}
+table_3 <- rbind(apply(chi[,-1],2,max), apply(hou[,-1],2,max), apply(nyc[,-1],2,max), apply(sfo[,-1],2,max)) %>% round(digits=1)
+table_3 <- cbind(data.frame(City=c("Chicago","Houston", "New York City", "San Francisco")),table_3)
+pandoc.table(table_3, split.tables=Inf, caption="Annual Maximum Values for Each City")
+```
+<br>
+
+#### Table 4: A table showing the annual minimums of each observed metric for every city
+The fourth table uses the same code as the third, but the `min` function is used instead of `max`.
+```{r, results="asis"}
+table_4 <- rbind(apply(chi[,-1],2,min), apply(hou[,-1],2,min), apply(nyc[,-1],2,min), apply(sfo[,-1],2,min)) %>% round(digits=1)
+table_4 <- cbind(data.frame(City=c("Chicago","Houston", "New York City", "San Francisco")),table_4)
+pandoc.table(table_4, split.tables=Inf, caption="Annual Minimum Values for Each City")
+```
+<br>
+
+#### Table 5: A table showing in which months the annual maximums of each metric were observed in every city
+Finally, for the fifth table, `which.max` is used in the column `apply` call and then the resulting values are translated to month names using another `apply` call.
+```{r, results="asis"}
+table_5 <- rbind(apply(chi[,-1],2,which.max), apply(hou[,-1],2,which.max), apply(nyc[,-1],2,which.max), apply(sfo[,-1],2,which.max)) %>% round(digits=1)
+table_5 <- apply(table_5, 2, function(x) month.abb[x])
+table_5 <- cbind(data.frame(City=c("Chicago","Houston", "New York City", "San Francisco")),table_5)
+pandoc.table(table_5, split.tables=Inf, caption="Month Containing Annual Maximum Values for Each City")
+```
+
